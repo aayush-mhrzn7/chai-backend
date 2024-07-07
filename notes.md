@@ -22,3 +22,7 @@ jwt is a bearer token used for generating tokens to encrypt the payload user inf
 bcrypt; for encrypting password
 
 aggregatepaginate: study more from docs
+
+multer is used to upload files in a backend we cannot pass files in middlewares for that we use multer or expressupload
+cloudinary is used to upload files in the cloudinary server and get the url of the image uploaded which is then stored in the database
+this is done so that the mondodb database size doesnt require more amount of unnecessary storage
