@@ -16,3 +16,9 @@ asynchandler is a utility that is a higher order function tht takes a function a
 apiError is a utility that is a class that is used to standardize the way we pass errrors from backend for example we can forget to send either status codes or even message sthis is used to crete a standard such that we have a boiler plate of error handeling
 
 apiResponse is a utility that is a class that is used to standarize the way that we pass responses to the front end form the backend by passing sucess code messages os that all reponses can be created with a same standard
+
+jwt is a bearer token used for generating tokens to encrypt the payload user information requires verficaition secret
+
+bcrypt; for encrypting password
+
+aggregatepaginate: study more from docs
