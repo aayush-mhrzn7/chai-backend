@@ -6,24 +6,31 @@ import { uploadOnCloudinary } from "../utils/Cloudinary.js";
 const registerUser = asyncHandler(async (req, res) => {
   /* res.status(200).json({ sucess: "ok" }); */
   //step 1
-  const { fullname, email, username, password } = req.body;
+  const { fullName, email, username, password } = req.body;
   //step 2
   if (
-    [fullname, email, username, password].some((field) => field?.trim() === "")
+    [fullName, email, username, password].some((field) => field?.trim() === "")
   ) {
     throw new ApiError(400, "All fields is required");
   }
   //step 3
-  const existingUser = User.findOne({ $or: [{ username }, { email }] });
+  const existingUser = await User.findOne({ $or: [{ username }, { email }] });
   if (existingUser) {
     //if no apierror then res.sendres.ststus garirrakhnu parxa
-    throw new ApiError(409, "User with this username and email exists");
+    throw new ApiError(409, "User with this username  and email exists");
   }
   //step 4 req.files if given by multer
   console.log(req.files);
   const avatarLocalPath = req.files?.avatar[0]?.path;
-  const coverImageLocalPath = req.files?.coverImage[0]?.path;
-
+  /*   const coverImageLocalPath = req.files?.coverImage[0]?.path; */
+  let coverImageLocalPath;
+  if (
+    req.files &&
+    Array.isArray(req.files.coverImage) &&
+    req.files.coverImage.length > 0
+  ) {
+    coverImageLocalPath = req.files.coverImage[0]?.path;
+  }
   if (!avatarLocalPath) {
     throw new ApiError(400, "avatar is required");
   }
@@ -33,15 +40,17 @@ const registerUser = asyncHandler(async (req, res) => {
   if (!avatar) {
     throw new ApiError(400, "required avatar");
   }
+
   //step 6
   const user = await User.create({
-    fullname,
+    fullName,
     avatar: avatar.url,
-    email,
-    username: username.toLowerCase(),
     coverImage: coverImage?.url || "",
+    email,
+    password,
+    username,
   });
-  //step`7
+  //step 7
   const createdUser = await User.findById(user._id).select(
     "-password -refreshToken"
   );
@@ -59,7 +68,7 @@ export { registerUser };
 //steps
 //get user details from frontend
 //validation if user sends null
-//check if the user already exists either username or email
+//check if the user already exists either username  or email
 //if the files exist (avatar and cover)
 //if  files uplaod to cloudinary
 //check cloudinarry again for avatar
