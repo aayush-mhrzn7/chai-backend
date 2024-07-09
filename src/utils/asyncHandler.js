@@ -1,5 +1,5 @@
 const asyncHandler = (requestHandler) => {
-  (req, res, next) => {
+  return (req, res, next) => {
     //when good responses
     Promise.resolve(requestHandler(req, res, next)).catch((err) =>
       console.log("error in async handler mid:", err)
