@@ -4,7 +4,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/Cloudinary.js";
 import jwt from "jsonwebtoken";
-import mongoose from "mongoose";
+
 //since required many time seperate method is mad efor access and refrets
 
 const generateAcessAndRefreshTokens = async (userId) => {
@@ -23,7 +23,49 @@ const generateAcessAndRefreshTokens = async (userId) => {
     throw new ApiError(500, "error during generating tokens");
   }
 };
-
+const refreshAcessToken = asyncHandler(async (req, res) => {
+  const incomingRefreshToken =
+    req.cookies.refreshToken || req.body.refreshToken;
+  if (!incomingRefreshToken) {
+    throw new ApiError(
+      401,
+      "invalid incoming refresh token unauthorized Request "
+    );
+  }
+  try {
+    const tokenDecoded = jwt.verify(
+      incomingRefreshToken,
+      process.env.REFRESH_TOKEN_SECRET
+    );
+    const user = await User.findById(tokenDecoded?._id);
+    if (!user) {
+      throw new ApiError(401, "invalid incoming refresh token  ");
+    }
+    if (incomingRefreshToken !== user?.refreshToken) {
+      throw new ApiError(401, "expired token");
+    }
+    const { acessToken, newRefreshToken } = await generateAcessAndRefreshTokens(
+      user._id
+    );
+    const options = {
+      httpOnly: true,
+      secure: true,
+    };
+    return res
+      .status(200)
+      .cookie("acessToken", options)
+      .cookie("newRefreshToken", options)
+      .json(
+        new ApiResponse(
+          200,
+          { acessToken, newRefreshToken },
+          "acess token refreshed sucessfully"
+        )
+      );
+  } catch (error) {
+    throw new ApiError(400, "invalid re-refreshing acess tokens");
+  }
+});
 const registerUser = asyncHandler(async (req, res) => {
   /* res.status(200).json({ sucess: "ok" }); */
   //step 1
@@ -142,50 +184,118 @@ const logoutUser = asyncHandler(async (req, res) => {
     .clearCookie("refreshToken", options)
     .json(new ApiResponse(200, {}, "user logged out"));
 });
-const refreshAcessToken = asyncHandler(async (req, res) => {
-  const incomingRefreshToken =
-    req.cookies.refreshToken || req.body.refreshToken;
-  if (!incomingRefreshToken) {
-    throw new ApiError(
-      401,
-      "invalid incoming refresh token unauthorized Request "
-    );
+
+const changeCurrentUserPassword = asyncHandler(async (req, res) => {
+  const { oldPassword, newPassword /* confirmPassword */ } = req.body;
+  const user = await User.findById(req.user?._id);
+  /*  if(newPassword === confirmPassword){
+    throw 
+  } */
+  const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
+  if (!isPasswordCorrect) {
+    throw new ApiError(400, "invalid old password detected");
   }
-  try {
-    const tokenDecoded = jwt.verify(
-      incomingRefreshToken,
-      process.env.REFRESH_TOKEN_SECRET
-    );
-    const user = await User.findById(tokenDecoded?._id);
-    if (!user) {
-      throw new ApiError(401, "invalid incoming refresh token  ");
-    }
-    if (incomingRefreshToken !== user?.refreshToken) {
-      throw new ApiError(401, "expired token");
-    }
-    const { acessToken, newRefreshToken } = await generateAcessAndRefreshTokens(
-      user._id
-    );
-    const options = {
-      httpOnly: true,
-      secure: true,
-    };
-    return res
-      .status(200)
-      .cookie("acessToken", options)
-      .cookie("newRefreshToken", options)
-      .json(
-        new ApiResponse(
-          200,
-          { acessToken, newRefreshToken },
-          "acess token refreshed sucessfully"
-        )
-      );
-  } catch (error) {
-    throw new ApiError(400, "invalid re-refreshing acess tokens");
-  }
+  User.password = newPassword;
+  await user.save({ validateBeforeSave: false });
+  res
+    .status(200)
+    .json(new ApiResponse(200, {}, "password changed sucessfully "));
 });
-export { registerUser, loginUser, logoutUser, refreshAcessToken };
+
+const getCurrentUser = asyncHandler(async (req, res) => {
+  return res
+    .status(200)
+    .json(new ApiResponse(200, req.user, "current user fetched sucessfully "));
+});
+
+const updateAccountDetails = asyncHandler(async (req, res) => {
+  const { fullName, email } = req.body;
+  if (!fullName || !email) {
+    throw new ApiError(400, "all fields are required");
+  }
+  const user = await User.findByIdAndUpdate(
+    req.user?._id,
+    {
+      $set: {
+        fullName: fullName,
+        email: email,
+      },
+    },
+    { new: true }
+  ).select("-password -refreshToken");
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, {}, "user account details updated sucessfully ")
+    );
+});
+
+const updateAvatar = asyncHandler(async (req, res) => {
+  //files were taken above because we sent the filed od files
+  const avatarLocalPath = req.file?.path;
+  if (!avatarLocalPath) {
+    throw new ApiError(400, "avatar file is missing in multer ");
+  }
+  const avatar = await uploadOnCloudinary(avatarLocalPath);
+  if (!avatar) {
+    throw new ApiError(400, "avatar file is missing in the cloudinary ");
+  }
+  const user = await User.findByIdAndUpdate(
+    req.user?._id,
+    {
+      $set: {
+        avatar: avatar.url,
+      },
+    },
+    { new: true }
+  ).select("-password -refreshToken");
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "sucessfully uploaded file in cloudinary"));
+});
+const updateCoverImage = asyncHandler(async (req, res) => {
+  const coverImageLocalPath = req.file?.path;
+  if (!coverImageLocalPath) {
+    throw new ApiError(400, "coverImage file is missing in multer ");
+  }
+  const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+  if (!coverImage) {
+    throw new ApiError(
+      400,
+      user,
+      "coverImage  file is missing in the cloudinary "
+    );
+  }
+  const user = await User.findByIdAndUpdate(
+    req.user?._id,
+    {
+      $set: {
+        coverImage: coverImage.url,
+      },
+    },
+    { new: true }
+  ).select("-password -refreshToken");
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        user,
+        "sucessfully uploaded coverImage file in cloudinary"
+      )
+    );
+});
+export {
+  registerUser,
+  loginUser,
+  logoutUser,
+  refreshAcessToken,
+  changeCurrentUserPassword,
+  getCurrentUser,
+  updateAccountDetails,
+  updateAvatar,
+  updateCoverImage,
+};
 
 //steps
 //get user details from frontend
