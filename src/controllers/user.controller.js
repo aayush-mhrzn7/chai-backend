@@ -163,7 +163,7 @@ const refreshAcessToken = asyncHandler(async (req, res) => {
     if (incomingRefreshToken !== user?.refreshToken) {
       throw new ApiError(401, "expired token");
     }
-    const { newRefreshToken, acessToken } = await generateAcessAndRefreshTokens(
+    const { acessToken, newRefreshToken } = await generateAcessAndRefreshTokens(
       user._id
     );
     const options = {
@@ -182,7 +182,7 @@ const refreshAcessToken = asyncHandler(async (req, res) => {
         )
       );
   } catch (error) {
-    throw new ApiError(400, "incalid re-refreshing acess tokane");
+    throw new ApiError(400, "invalid re-refreshing acess tokens");
   }
 });
 export { registerUser, loginUser, logoutUser, refreshAcessToken };
