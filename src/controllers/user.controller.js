@@ -3,6 +3,26 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/Cloudinary.js";
+
+//since required many time seperate method is mad efor access and refrets
+
+const generateAcessAndRefreshTokens = async (userId) => {
+  try {
+    const user = await User.findById(userId);
+
+    //aces token is given to user but refresh token is given as well as stored in fb
+    const acessToken = user.generateAcessToken();
+    const refreshToken = user.generateRefreshToken();
+
+    user.refreshToken = refreshToken;
+    await user.save({ validateBeforeSave: false });
+
+    return { acessToken, refreshToken };
+  } catch (error) {
+    throw new ApiError(500, "error during generating tokens");
+  }
+};
+
 const registerUser = asyncHandler(async (req, res) => {
   /* res.status(200).json({ sucess: "ok" }); */
   //step 1
@@ -63,7 +83,66 @@ const registerUser = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, createdUser, "user is created sucessfully "));
 });
 
-export { registerUser };
+const loginUser = asyncHandler(async (req, res) => {
+  const { email, password, username } = req.body;
+
+  if (!username && !email) {
+    throw new ApiError(400, "email and username is required");
+  }
+  const user = await User.findOne({ $or: [{ email }, { username }] });
+  if (!user) {
+    throw new ApiError(404, "user doesnt exist ");
+  }
+  // the |User os tje mongo db user and user is the instane of user created which contains arll method
+  const isPasswordValid = await user.isPasswordCorrect(password);
+  if (!isPasswordValid) {
+    throw new ApiError(401, "password is incorrect ");
+  }
+  const { acessToken, refreshToken } = await generateAcessAndRefreshTokens(
+    user._id
+  );
+
+  const loggedInUser = await User.findById(user._id).select(
+    "-password -refreshToken"
+  );
+  //when ever sending ookins make options the options will be modified only in sever not in front end
+  const options = {
+    httpOnly: true,
+    secure: true,
+  };
+  return res
+    .status(200)
+    .cookie("acessToken ", acessToken, options)
+    .cookie("refreshToken", refreshToken, options)
+    .json(
+      new ApiResponse(
+        new ApiResponse(
+          200,
+          { user: loggedInUser, acessToken, refreshToken },
+          "user loged in sucessfully"
+        )
+      )
+    );
+});
+
+const logoutUser = asyncHandler(async (req, res) => {
+  User.findByIdAndUpdate(req.user._id, {
+    $set: {
+      refreshToken: undefined,
+    },
+  });
+  const options = {
+    httpOnly: true,
+    secure: true,
+  };
+  return res
+    .status(200)
+    .clearCookie("acessToken", options)
+    .clearCookie("refreshToken", options)
+    .json(new ApiResponse(200, {}, "user logged out"));
+});
+
+export { registerUser, loginUser, logoutUser };
 
 //steps
 //get user details from frontend
@@ -77,4 +156,15 @@ export { registerUser };
 //check if created user
 //chcek if not created
 
-//create user object -- create entry in db
+/* 
+todos for login a user 
+email password from req.body,
+check if email username exists 
+find user if not found redirect to signup 
+password check 
+jwt session refresh token in form of cookies 
+redirect to main page 
+*/
+
+//before sending cookies
+// know what information to be sent and dont send the unnecessary
