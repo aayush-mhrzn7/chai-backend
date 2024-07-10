@@ -3,7 +3,8 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/Cloudinary.js";
-
+import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
 //since required many time seperate method is mad efor access and refrets
 
 const generateAcessAndRefreshTokens = async (userId) => {
@@ -141,8 +142,50 @@ const logoutUser = asyncHandler(async (req, res) => {
     .clearCookie("refreshToken", options)
     .json(new ApiResponse(200, {}, "user logged out"));
 });
-
-export { registerUser, loginUser, logoutUser };
+const refreshAcessToken = asyncHandler(async (req, res) => {
+  const incomingRefreshToken =
+    req.cookies.refreshToken || req.body.refreshToken;
+  if (!incomingRefreshToken) {
+    throw new ApiError(
+      401,
+      "invalid incoming refresh token unauthorized Request "
+    );
+  }
+  try {
+    const tokenDecoded = jwt.verify(
+      incomingRefreshToken,
+      process.env.REFRESH_TOKEN_SECRET
+    );
+    const user = await User.findById(tokenDecoded?._id);
+    if (!user) {
+      throw new ApiError(401, "invalid incoming refresh token  ");
+    }
+    if (incomingRefreshToken !== user?.refreshToken) {
+      throw new ApiError(401, "expired token");
+    }
+    const { newRefreshToken, acessToken } = await generateAcessAndRefreshTokens(
+      user._id
+    );
+    const options = {
+      httpOnly: true,
+      secure: true,
+    };
+    return res
+      .status(200)
+      .cookie("acessToken", options)
+      .cookie("newRefreshToken", options)
+      .json(
+        new ApiResponse(
+          200,
+          { acessToken, newRefreshToken },
+          "acess token refreshed sucessfully"
+        )
+      );
+  } catch (error) {
+    throw new ApiError(400, "incalid re-refreshing acess tokane");
+  }
+});
+export { registerUser, loginUser, logoutUser, refreshAcessToken };
 
 //steps
 //get user details from frontend
