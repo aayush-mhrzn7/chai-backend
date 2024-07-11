@@ -226,12 +226,13 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
   return res
     .status(200)
     .json(
-      new ApiResponse(200, {}, "user account details updated sucessfully ")
+      new ApiResponse(200, user, "user account details updated sucessfully ")
     );
 });
 
 const updateAvatar = asyncHandler(async (req, res) => {
   //files were taken above because we sent the filed od files
+  //NOTE delete the old avatar image
   const avatarLocalPath = req.file?.path;
   if (!avatarLocalPath) {
     throw new ApiError(400, "avatar file is missing in multer ");
@@ -251,7 +252,9 @@ const updateAvatar = asyncHandler(async (req, res) => {
   ).select("-password -refreshToken");
   return res
     .status(200)
-    .json(new ApiResponse(200, "sucessfully uploaded file in cloudinary"));
+    .json(
+      new ApiResponse(200, user, "sucessfully uploaded file in cloudinary")
+    );
 });
 const updateCoverImage = asyncHandler(async (req, res) => {
   const coverImageLocalPath = req.file?.path;
@@ -285,6 +288,76 @@ const updateCoverImage = asyncHandler(async (req, res) => {
       )
     );
 });
+
+const getUserChannelProfile = asyncHandler(async (req, res) => {
+  const { username } = req.params;
+  if (!username?.trim()) {
+    throw new ApiError(400, "there is no username in params");
+  }
+  /*  const channel = await User.find({ username: username }); */
+  const channel = await User.aggregate([
+    {
+      //first pirpline
+      $match: {
+        username: username?.toLowerCase(),
+      },
+    },
+    {
+      $lookup: {
+        from: "subscriptions",
+        foreignField: "channel",
+        localField: "_id",
+        as: "subscribers",
+      },
+    },
+    {
+      $lookup: {
+        from: "subscriptions",
+        foreignField: "subscriber",
+        localField: "_id",
+        as: "subscribedTo",
+      },
+    },
+    {
+      $addFields: {
+        subscriberCount: {
+          $size: "$subscribers",
+        },
+        channelsSubscribedTo: {
+          $size: "$subscribedTo",
+        },
+        isSubscribed: {
+          $cond: {
+            if: { $in: [req.user?._id, "$subscribers.subscriber"] },
+            then: true,
+            else: false,
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        fullName: 1,
+        username: 1,
+        subscriberCount: 1,
+        channelsSubscribedTo: 1,
+        isSubscribed: 1,
+        avatar: 1,
+        coverImage: 1,
+        email: 1,
+      },
+    },
+  ]);
+  console.log("channel: ", channel);
+  if (!channel?.length) {
+    throw new ApiError(400, "channel doesnt exist");
+  }
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, channel[0], "user channel is fetched sucessfully ")
+    );
+});
 export {
   registerUser,
   loginUser,
@@ -295,6 +368,7 @@ export {
   updateAccountDetails,
   updateAvatar,
   updateCoverImage,
+  getUserChannelProfile,
 };
 
 //steps
