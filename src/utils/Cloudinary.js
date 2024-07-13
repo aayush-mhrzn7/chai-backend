@@ -30,13 +30,9 @@ const uploadOnCloudinary = async (localFilePath) => {
     return null;
   }
 };
-const deleteFilesFromCloudinary = async (cloudinaryUrl) => {
+const deleteFilesFromCloudinary = async (id) => {
   try {
-    const cloudinaryID = cloudinaryUrl.split("/").pop();
-    console.log("cloudinaryID", cloudinaryID);
-    const response = await cloudinary.v2.uploader.destroy(cloudinaryUrl, {
-      resource_type: "auto",
-    });
+    const response = await cloudinary.uploader.destroy(id);
     if (!response) {
       throw new ApiError(400, "error when deleting the old document partt 1");
     }
