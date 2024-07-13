@@ -2,7 +2,10 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { User } from "../models/user.model.js";
-import { uploadOnCloudinary } from "../utils/Cloudinary.js";
+import {
+  deleteFilesFromCloudinary,
+  uploadOnCloudinary,
+} from "../utils/Cloudinary.js";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 
@@ -238,10 +241,22 @@ const updateAvatar = asyncHandler(async (req, res) => {
   if (!avatarLocalPath) {
     throw new ApiError(400, "avatar file is missing in multer ");
   }
+  const temporary = await User.findById(req.user?._id);
+  if (!temporary) {
+    throw new ApiError(400, " old avatar file is missing in the multer ");
+  }
+  if (temporary.avatar) {
+    try {
+      await deleteFilesFromCloudinary(temporary.avatar);
+    } catch (error) {
+      console.error("Failed to delete old avatar:", error);
+    }
+  }
   const avatar = await uploadOnCloudinary(avatarLocalPath);
   if (!avatar) {
     throw new ApiError(400, "avatar file is missing in the cloudinary ");
   }
+
   const user = await User.findByIdAndUpdate(
     req.user?._id,
     {
@@ -262,6 +277,15 @@ const updateCoverImage = asyncHandler(async (req, res) => {
   if (!coverImageLocalPath) {
     throw new ApiError(400, "coverImage file is missing in multer ");
   }
+  const temporary = await User.findById(req.user?._id);
+  if (!temporary) {
+    throw new ApiError(400, "old coverImage file is missing in multer ");
+  }
+  const oldCoverImage = await deleteFilesFromCloudinary(temporary.coverImage);
+  if (!oldCoverImage) {
+    throw new ApiError(400, "old coverImage file is missing in cloudinary ");
+  }
+
   const coverImage = await uploadOnCloudinary(coverImageLocalPath);
   if (!coverImage) {
     throw new ApiError(

@@ -1,5 +1,7 @@
 import { v2 as cloudinary } from "cloudinary";
 import fs from "fs";
+import { ApiError } from "./ApiError.js";
+import path from "path";
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUDNAME,
@@ -28,5 +30,18 @@ const uploadOnCloudinary = async (localFilePath) => {
     return null;
   }
 };
-
-export { uploadOnCloudinary };
+const deleteFilesFromCloudinary = async (cloudinaryUrl) => {
+  try {
+    const cloudinaryID = cloudinaryUrl.split("/").pop();
+    console.log("cloudinaryID", cloudinaryID);
+    const response = await cloudinary.v2.uploader.destroy(cloudinaryUrl, {
+      resource_type: "auto",
+    });
+    if (!response) {
+      throw new ApiError(400, "error when deleting the old document partt 1");
+    }
+  } catch (error) {
+    throw new ApiError(400, "error when deleting the old document");
+  }
+};
+export { uploadOnCloudinary, deleteFilesFromCloudinary };
